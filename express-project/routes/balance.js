@@ -312,7 +312,7 @@ router.post('/exchange-out', authenticateToken, async (req, res) => {
     if (currentPoints < numAmount) {
       return res.status(HTTP_STATUS.BAD_REQUEST).json({
         code: RESPONSE_CODES.VALIDATION_ERROR,
-        message: `石榴点不足，当前余额: ${currentPoints.toFixed(2)}`
+        message: `石榴点不足，当前石榴点: ${currentPoints.toFixed(2)}`
       });
     }
 

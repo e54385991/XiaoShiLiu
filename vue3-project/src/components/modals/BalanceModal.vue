@@ -13,7 +13,7 @@
         <div class="balance-cards">
           <div class="balance-card external">
             <div class="balance-info">
-              <div class="balance-label">用户中心余额</div>
+              <div class="balance-label">余额</div>
               <div class="balance-value">
                 <span v-if="balanceStore.isLoading" class="loading">加载中...</span>
                 <span v-else class="amount">{{ balanceStore.externalBalance.toFixed(2) }}</span>
@@ -40,11 +40,11 @@
         <div class="rate-info">
           <div class="rate-item">
             <span class="rate-label">兑入比例</span>
-            <span class="rate-value">1 用户中心余额 = {{ balanceStore.exchangeRateIn }} 石榴点</span>
+            <span class="rate-value">1 余额 = {{ balanceStore.exchangeRateIn }} 石榴点</span>
           </div>
           <div class="rate-item">
             <span class="rate-label">兑出比例</span>
-            <span class="rate-value">1 石榴点 = {{ balanceStore.exchangeRateOut }} 用户中心余额</span>
+            <span class="rate-value">1 石榴点 = {{ balanceStore.exchangeRateOut }} 余额</span>
           </div>
         </div>
 
@@ -75,7 +75,7 @@
                 type="number" 
                 min="0" 
                 step="0.01"
-                :placeholder="activeTab === 'in' ? '请输入要从用户中心转入的金额' : '请输入要转出的石榴点'"
+                :placeholder="activeTab === 'in' ? '请输入要转入的余额' : '请输入要转出的石榴点'"
               />
             </div>
             
@@ -84,7 +84,7 @@
                 将获得 <strong>{{ (exchangeAmount * balanceStore.exchangeRateIn).toFixed(2) }}</strong> 石榴点
               </span>
               <span v-else>
-                将获得 <strong>{{ (exchangeAmount * balanceStore.exchangeRateOut).toFixed(2) }}</strong> 用户中心余额
+                将获得 <strong>{{ (exchangeAmount * balanceStore.exchangeRateOut).toFixed(2) }}</strong> 余额
               </span>
             </div>
 
