@@ -24,16 +24,6 @@
             <div class="tag-value" :class="{ empty: !personalityTags?.mbti }">{{ personalityTags?.mbti || '未设置' }}</div>
           </div>
           <div class="tag-item">
-            <div class="tag-label">学历</div>
-            <div class="tag-value" :class="{ empty: !personalityTags?.education }">{{ personalityTags?.education ||
-              '未设置' }}</div>
-          </div>
-          <div class="tag-item">
-            <div class="tag-label">专业</div>
-            <div class="tag-value" :class="{ empty: !personalityTags?.major }">{{ personalityTags?.major || '未设置' }}
-            </div>
-          </div>
-          <div class="tag-item">
             <div class="tag-label">兴趣爱好</div>
             <div class="tag-value" v-if="personalityTags?.interests && personalityTags.interests.length > 0">
               <div class="interests-list">

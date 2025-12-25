@@ -1306,14 +1306,20 @@ router.get('/oauth2/callback', async (req, res) => {
 
     // 根据OAuth2用户信息查找或创建本地用户
     // OAuth2返回的用户信息格式：{ sub, user_id, username, vip_level, balance, email }
-    const oauth2UserId = oauth2UserInfo.user_id || oauth2UserInfo.sub;
+    const oauth2UserId = parseInt(oauth2UserInfo.user_id || oauth2UserInfo.sub, 10);
     const oauth2Username = oauth2UserInfo.username;
     const oauth2Email = oauth2UserInfo.email || '';
+
+    // 验证oauth2UserId是有效的整数
+    if (isNaN(oauth2UserId)) {
+      console.error('OAuth2用户ID无效:', oauth2UserInfo.user_id || oauth2UserInfo.sub);
+      return res.redirect('/?error=invalid_user_id');
+    }
 
     // 首先尝试通过oauth2_id查找用户
     let [existingUsers] = await pool.execute(
       `SELECT ${OAUTH2_USER_SELECT_FIELDS} FROM users WHERE oauth2_id = ?`,
-      [oauth2UserId.toString()]
+      [oauth2UserId]
     );
 
     let user;
@@ -1360,7 +1366,7 @@ router.get('/oauth2/callback', async (req, res) => {
       const defaultNickname = oauth2Username || `用户${oauth2UserId}`;
       const [insertResult] = await pool.execute(
         'INSERT INTO users (user_id, nickname, password, email, avatar, bio, location, oauth2_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [newUserId, defaultNickname, '', oauth2Email, '', '这个人很懒，还没有简介', ipLocation, oauth2UserId.toString()]
+        [newUserId, defaultNickname, '', oauth2Email, '', '这个人很懒，还没有简介', ipLocation, oauth2UserId]
       );
 
       const newId = insertResult.insertId;

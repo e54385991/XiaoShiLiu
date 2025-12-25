@@ -786,3 +786,26 @@ export const adminApi = {
     return request.get('/admin/monitor/activities')
   }
 }
+
+// 余额中心API
+export const balanceApi = {
+  // 获取余额中心配置
+  getConfig() {
+    return request.get('/balance/config')
+  },
+
+  // 获取用户外部余额
+  getUserBalance() {
+    return request.get('/balance/user-balance')
+  },
+
+  // 兑入余额（从用户中心转入本站）
+  exchangeIn(amount) {
+    return request.post('/balance/exchange-in', { amount })
+  },
+
+  // 兑出余额（从本站转出到用户中心）
+  exchangeOut(amount) {
+    return request.post('/balance/exchange-out', { amount })
+  }
+}

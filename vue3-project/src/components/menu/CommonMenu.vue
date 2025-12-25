@@ -7,12 +7,16 @@ import { useAuthStore } from '@/stores/auth'
 import { useAboutStore } from '@/stores/about'
 import { useKeyboardShortcutsStore } from '@/stores/keyboardShortcuts'
 import { useAccountSecurityStore } from '@/stores/accountSecurity'
+import { useBalanceStore } from '@/stores/balance'
 import ColorPickerMenuItem from '@/components/menu/ColorPickerMenuItem.vue'
+import { onMounted } from 'vue'
+
 const userStore = useUserStore()
 const authStore = useAuthStore()
 const aboutStore = useAboutStore()
 const keyboardShortcutsStore = useKeyboardShortcutsStore()
 const accountSecurityStore = useAccountSecurityStore()
+const balanceStore = useBalanceStore()
 
 // 登录处理
 const handleLoginClick = () => {
@@ -42,8 +46,15 @@ const handleMenuClick = (action) => {
     accountSecurityStore.openAccountSecurityModal()
   } else if (action === 'keyboardShortcuts') {
     keyboardShortcutsStore.openKeyboardShortcutsModal()
+  } else if (action === 'balanceCenter') {
+    balanceStore.openBalanceModal()
   }
 }
+
+// 获取余额中心配置
+onMounted(() => {
+  balanceStore.fetchConfig()
+})
 </script>
 
 <template>
@@ -56,6 +67,9 @@ const handleMenuClick = (action) => {
   </DropdownItem>
   <DropdownItem v-if="userStore.isLoggedIn" @click="handleMenuClick('accountSecurity')">
     账号与安全
+  </DropdownItem>
+  <DropdownItem v-if="userStore.isLoggedIn && balanceStore.enabled" @click="handleMenuClick('balanceCenter')">
+    余额中心
   </DropdownItem>
   <DropdownDivider />
   <ColorPickerMenuItem />

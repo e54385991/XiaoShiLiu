@@ -106,19 +106,6 @@
 
 
           <div class="form-group">
-            <label class="form-label">学历:</label>
-            <DropdownSelect v-model="form.education" :options="educationOptions" placeholder="请选择学历" label-key="label"
-              value-key="value" min-width="100%" />
-          </div>
-
-
-          <div class="form-group">
-            <label class="form-label">专业:</label>
-            <input v-model="form.major" type="text" placeholder="请输入专业" maxlength="11" />
-          </div>
-
-
-          <div class="form-group">
             <label class="form-label">兴趣爱好:</label>
             <div class="interests-input">
               <div class="interest-tags">
@@ -332,8 +319,6 @@ const form = reactive({
   gender: '',
   zodiac_sign: '',
   mbti: '',
-  education: '',
-  major: '',
   interests: [],
   avatarBlob: null // 存储裁剪后的图片blob
 })
@@ -377,15 +362,6 @@ const zodiacOptions = [
   { value: '摩羯座', label: '摩羯座' },
   { value: '水瓶座', label: '水瓶座' },
   { value: '双鱼座', label: '双鱼座' }
-]
-
-const educationOptions = [
-  { value: '', label: '暂不设置' },
-  { value: '高中及以下', label: '高中及以下' },
-  { value: '大专', label: '大专' },
-  { value: '本科', label: '本科' },
-  { value: '硕士', label: '硕士' },
-  { value: '博士', label: '博士' }
 ]
 
 const mbtiDimensions = [
@@ -455,8 +431,6 @@ watch(() => props.visible, (newValue) => {
     form.gender = props.userInfo.gender || ''
     form.zodiac_sign = props.userInfo.zodiac_sign || ''
     form.mbti = props.userInfo.mbti || ''
-    form.education = props.userInfo.education || ''
-    form.major = props.userInfo.major || ''
     // 处理兴趣爱好：支持JSON字符串、逗号分隔字符串和数组格式
     const interests = props.userInfo.interests || ''
     if (typeof interests === 'string') {
