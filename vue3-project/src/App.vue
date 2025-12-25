@@ -1,5 +1,5 @@
 <script setup>
-import { RouterView, useRoute, useRouter } from 'vue-router'
+import { RouterView } from 'vue-router'
 import { onMounted, ref } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useAuthStore } from '@/stores/auth'
@@ -18,8 +18,6 @@ import VerifiedModal from '@/components/modals/VerifiedModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useConfirm } from '@/views/admin/composables/useConfirm'
 
-const route = useRoute()
-const router = useRouter()
 const userStore = useUserStore()
 const authStore = useAuthStore()
 const aboutStore = useAboutStore()
@@ -56,11 +54,17 @@ const handleOAuth2Callback = () => {
   const error = urlParams.get('error')
   const errorMessage = urlParams.get('message')
 
+  // 如果没有OAuth2相关参数，直接返回
+  if (!oauth2Login && !error) {
+    return
+  }
+
+  // 立即清除URL参数（安全性：减少敏感信息在URL中的暴露时间）
+  window.history.replaceState({}, document.title, window.location.pathname)
+
   // 处理OAuth2登录错误
   if (error) {
     console.error('OAuth2登录错误:', error, errorMessage)
-    // 清除URL参数
-    router.replace({ path: route.path, query: {} })
     // 可以显示错误提示
     return
   }
@@ -77,15 +81,10 @@ const handleOAuth2Callback = () => {
     userStore.getCurrentUser().then(() => {
       console.log('OAuth2登录成功', isNewUser === 'true' ? '（新用户）' : '')
       
-      // 清除URL参数
-      router.replace({ path: route.path, query: {} })
-      
       // 刷新页面以应用登录状态
       window.location.reload()
     }).catch((err) => {
       console.error('获取用户信息失败:', err)
-      // 清除URL参数
-      router.replace({ path: route.path, query: {} })
     })
   }
 }

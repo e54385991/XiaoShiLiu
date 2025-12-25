@@ -1140,6 +1140,9 @@ router.put('/admin/admins/:id/password', authenticateToken, async (req, res) => 
 
 // ========== OAuth2 登录相关 ==========
 
+// OAuth2用户信息查询字段（减少重复）
+const OAUTH2_USER_SELECT_FIELDS = 'id, user_id, nickname, avatar, bio, location, follow_count, fans_count, like_count, is_active, gender, zodiac_sign, mbti, education, major, interests';
+
 // 生成OAuth2 state参数
 const generateOAuth2State = () => {
   const state = crypto.randomBytes(32).toString('base64url');
@@ -1293,7 +1296,7 @@ router.get('/oauth2/callback', async (req, res) => {
 
     // 首先尝试通过oauth2_id查找用户
     let [existingUsers] = await pool.execute(
-      'SELECT id, user_id, nickname, avatar, bio, location, follow_count, fans_count, like_count, is_active, gender, zodiac_sign, mbti, education, major, interests FROM users WHERE oauth2_id = ?',
+      `SELECT ${OAUTH2_USER_SELECT_FIELDS} FROM users WHERE oauth2_id = ?`,
       [oauth2UserId.toString()]
     );
 
@@ -1348,7 +1351,7 @@ router.get('/oauth2/callback', async (req, res) => {
       
       // 获取新创建的用户信息
       const [newUserRows] = await pool.execute(
-        'SELECT id, user_id, nickname, avatar, bio, location, follow_count, fans_count, like_count, is_active, gender, zodiac_sign, mbti, education, major, interests FROM users WHERE id = ?',
+        `SELECT ${OAUTH2_USER_SELECT_FIELDS} FROM users WHERE id = ?`,
         [newId.toString()]
       );
       user = newUserRows[0];
