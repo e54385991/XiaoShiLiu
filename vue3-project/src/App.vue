@@ -1,6 +1,6 @@
 <script setup>
-import { RouterView } from 'vue-router'
-import { onMounted } from 'vue'
+import { RouterView, useRoute, useRouter } from 'vue-router'
+import { onMounted, ref } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useAuthStore } from '@/stores/auth'
 import { useAboutStore } from '@/stores/about'
@@ -18,6 +18,8 @@ import VerifiedModal from '@/components/modals/VerifiedModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useConfirm } from '@/views/admin/composables/useConfirm'
 
+const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 const authStore = useAuthStore()
 const aboutStore = useAboutStore()
@@ -28,7 +30,6 @@ const verifiedStore = useVerifiedStore()
 const { confirmState, handleConfirm, handleCancel } = useConfirm()
 
 // 找回密码模态框状态
-import { ref } from 'vue'
 const showResetPasswordModal = ref(false)
 
 const openResetPassword = () => {
@@ -43,6 +44,50 @@ const closeResetPassword = () => {
 const backToLoginFromReset = () => {
   showResetPasswordModal.value = false
   authStore.openLoginModal()
+}
+
+// 处理OAuth2回调参数
+const handleOAuth2Callback = () => {
+  const urlParams = new URLSearchParams(window.location.search)
+  const oauth2Login = urlParams.get('oauth2_login')
+  const accessToken = urlParams.get('access_token')
+  const refreshToken = urlParams.get('refresh_token')
+  const isNewUser = urlParams.get('is_new_user')
+  const error = urlParams.get('error')
+  const errorMessage = urlParams.get('message')
+
+  // 处理OAuth2登录错误
+  if (error) {
+    console.error('OAuth2登录错误:', error, errorMessage)
+    // 清除URL参数
+    router.replace({ path: route.path, query: {} })
+    // 可以显示错误提示
+    return
+  }
+
+  // 处理OAuth2登录成功
+  if (oauth2Login === 'success' && accessToken) {
+    // 保存token
+    localStorage.setItem('token', accessToken)
+    if (refreshToken) {
+      localStorage.setItem('refreshToken', refreshToken)
+    }
+    
+    // 获取用户信息并保存
+    userStore.getCurrentUser().then(() => {
+      console.log('OAuth2登录成功', isNewUser === 'true' ? '（新用户）' : '')
+      
+      // 清除URL参数
+      router.replace({ path: route.path, query: {} })
+      
+      // 刷新页面以应用登录状态
+      window.location.reload()
+    }).catch((err) => {
+      console.error('获取用户信息失败:', err)
+      // 清除URL参数
+      router.replace({ path: route.path, query: {} })
+    })
+  }
 }
 
 // 恢复保存的主题色
@@ -103,6 +148,9 @@ const restoreThemeColor = () => {
 
 // 应用启动时初始化用户信息和主题色
 onMounted(() => {
+  // 先处理OAuth2回调
+  handleOAuth2Callback()
+  
   userStore.initUserInfo()
   restoreThemeColor()
 })

@@ -126,6 +126,20 @@ const config = {
       email: process.env.EMAIL_FROM || '',
       name: process.env.EMAIL_FROM_NAME || '小石榴校园图文社区'
     }
+  },
+
+  // OAuth2 登录配置
+  oauth2: {
+    // 是否启用OAuth2登录
+    enabled: process.env.OAUTH2_ENABLED === 'true', // 默认不启用
+    // 是否仅允许OAuth2登录（禁用传统登录/注册）
+    onlyOAuth2: process.env.OAUTH2_ONLY_LOGIN === 'true', // 默认允许传统登录
+    // OAuth2服务器地址
+    loginUrl: process.env.OAUTH2_LOGIN_URL || '',
+    // OAuth2 Client ID（从管理后台获取的API令牌）
+    clientId: process.env.OAUTH2_CLIENT_ID || '',
+    // OAuth2回调地址（本站回调路径）
+    callbackPath: '/api/auth/oauth2/callback'
   }
 };
 

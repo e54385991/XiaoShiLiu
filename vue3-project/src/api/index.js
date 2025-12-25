@@ -246,6 +246,11 @@ export const authApi = {
     return request.get('/auth/email-config')
   },
 
+  // 获取认证配置（包括邮件和OAuth2）
+  getAuthConfig() {
+    return request.get('/auth/auth-config')
+  },
+
   // 绑定邮箱
   bindEmail(data) {
     return request.post('/auth/bind-email', data)
@@ -269,6 +274,12 @@ export const authApi = {
   // 重置密码
   resetPassword(data) {
     return request.post('/auth/reset-password', data)
+  },
+
+  // OAuth2登录 - 获取登录URL（前端重定向）
+  getOAuth2LoginUrl() {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+    return `${baseUrl}/auth/oauth2/login`
   }
 }
 

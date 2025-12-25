@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const { HTTP_STATUS, RESPONSE_CODES, ERROR_MESSAGES } = require('../constants');
-const { pool, email: emailConfig } = require('../config/config');
+const { pool, email: emailConfig, oauth2: oauth2Config } = require('../config/config');
 const { generateAccessToken, generateRefreshToken, verifyToken } = require('../utils/jwt');
 const { authenticateToken } = require('../middleware/auth');
 const { getIPLocation, getRealIP } = require('../utils/ipLocation');
@@ -14,8 +15,25 @@ const fs = require('fs');
 const captchaStore = new Map();
 // 存储邮箱验证码的临时对象
 const emailCodeStore = new Map();
+// 存储OAuth2 state参数（用于防止CSRF攻击）
+const oauth2StateStore = new Map();
 
-// 获取邮件功能配置状态
+// 获取认证配置状态（包括邮件功能和OAuth2配置）
+router.get('/auth-config', (req, res) => {
+  res.json({
+    code: RESPONSE_CODES.SUCCESS,
+    data: {
+      emailEnabled: emailConfig.enabled,
+      oauth2Enabled: oauth2Config.enabled,
+      oauth2OnlyLogin: oauth2Config.onlyOAuth2,
+      // 只返回必要的OAuth2配置，不返回敏感信息
+      oauth2LoginUrl: oauth2Config.enabled ? oauth2Config.loginUrl : ''
+    },
+    message: 'success'
+  });
+});
+
+// 获取邮件功能配置状态（保持向后兼容）
 router.get('/email-config', (req, res) => {
   res.json({
     code: RESPONSE_CODES.SUCCESS,
@@ -1117,6 +1135,267 @@ router.put('/admin/admins/:id/password', authenticateToken, async (req, res) => 
   } catch (error) {
     console.error('重置密码失败:', error);
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ code: RESPONSE_CODES.ERROR, message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR });
+  }
+});
+
+// ========== OAuth2 登录相关 ==========
+
+// 生成OAuth2 state参数
+const generateOAuth2State = () => {
+  const state = crypto.randomBytes(32).toString('base64url');
+  // 存储state，5分钟过期
+  oauth2StateStore.set(state, {
+    created: Date.now(),
+    expires: Date.now() + 5 * 60 * 1000
+  });
+  // 清理过期的state
+  for (const [key, value] of oauth2StateStore.entries()) {
+    if (Date.now() > value.expires) {
+      oauth2StateStore.delete(key);
+    }
+  }
+  return state;
+};
+
+// 验证并消费OAuth2 state参数
+const validateOAuth2State = (state) => {
+  const stored = oauth2StateStore.get(state);
+  if (!stored) {
+    return false;
+  }
+  // 删除已使用的state
+  oauth2StateStore.delete(state);
+  // 检查是否过期
+  return Date.now() <= stored.expires;
+};
+
+// 获取OAuth2回调URL
+const getOAuth2CallbackUrl = (req) => {
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  return `${protocol}://${host}${oauth2Config.callbackPath}`;
+};
+
+// OAuth2登录 - 重定向到OAuth2服务器
+router.get('/oauth2/login', (req, res) => {
+  try {
+    // 检查OAuth2是否启用
+    if (!oauth2Config.enabled) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ 
+        code: RESPONSE_CODES.VALIDATION_ERROR, 
+        message: 'OAuth2登录未启用' 
+      });
+    }
+
+    // 检查OAuth2配置是否完整
+    if (!oauth2Config.loginUrl || !oauth2Config.clientId) {
+      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ 
+        code: RESPONSE_CODES.ERROR, 
+        message: 'OAuth2配置不完整' 
+      });
+    }
+
+    // 生成state参数
+    const state = generateOAuth2State();
+    const callbackUrl = getOAuth2CallbackUrl(req);
+
+    // 构建OAuth2授权URL
+    const authUrl = `${oauth2Config.loginUrl}/oauth2/authorize?` +
+      `response_type=code&` +
+      `client_id=${encodeURIComponent(oauth2Config.clientId)}&` +
+      `redirect_uri=${encodeURIComponent(callbackUrl)}&` +
+      `state=${encodeURIComponent(state)}`;
+
+    // 重定向到OAuth2授权页面
+    res.redirect(authUrl);
+  } catch (error) {
+    console.error('OAuth2登录失败:', error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ 
+      code: RESPONSE_CODES.ERROR, 
+      message: 'OAuth2登录失败' 
+    });
+  }
+});
+
+// OAuth2回调处理
+router.get('/oauth2/callback', async (req, res) => {
+  try {
+    const { code, state, error: oauthError, error_description } = req.query;
+
+    // 检查OAuth2是否启用
+    if (!oauth2Config.enabled) {
+      return res.redirect('/?error=oauth2_disabled');
+    }
+
+    // 检查是否有错误响应
+    if (oauthError) {
+      console.error('OAuth2授权错误:', oauthError, error_description);
+      return res.redirect(`/?error=oauth2_auth_error&message=${encodeURIComponent(error_description || oauthError)}`);
+    }
+
+    // 验证必要参数
+    if (!code) {
+      return res.redirect('/?error=missing_code');
+    }
+
+    // 验证state参数（防止CSRF攻击）
+    if (!validateOAuth2State(state)) {
+      return res.redirect('/?error=invalid_state');
+    }
+
+    const callbackUrl = getOAuth2CallbackUrl(req);
+
+    // 使用授权码换取访问令牌
+    const tokenResponse = await fetch(`${oauth2Config.loginUrl}/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code,
+        client_id: oauth2Config.clientId,
+        redirect_uri: callbackUrl
+      }).toString()
+    });
+
+    const tokenData = await tokenResponse.json();
+
+    if (tokenData.error) {
+      console.error('OAuth2令牌错误:', tokenData.error, tokenData.error_description);
+      return res.redirect(`/?error=token_error&message=${encodeURIComponent(tokenData.error_description || tokenData.error)}`);
+    }
+
+    if (!tokenData.access_token) {
+      console.error('OAuth2响应缺少access_token:', tokenData);
+      return res.redirect('/?error=missing_access_token');
+    }
+
+    // 使用访问令牌获取用户信息
+    const userInfoResponse = await fetch(`${oauth2Config.loginUrl}/oauth2/userinfo`, {
+      headers: {
+        'Authorization': `Bearer ${tokenData.access_token}`
+      }
+    });
+
+    if (!userInfoResponse.ok) {
+      console.error('获取OAuth2用户信息失败:', userInfoResponse.status);
+      return res.redirect('/?error=userinfo_error');
+    }
+
+    const oauth2UserInfo = await userInfoResponse.json();
+
+    // 根据OAuth2用户信息查找或创建本地用户
+    // OAuth2返回的用户信息格式：{ sub, user_id, username, vip_level, balance, email }
+    const oauth2UserId = oauth2UserInfo.user_id || oauth2UserInfo.sub;
+    const oauth2Username = oauth2UserInfo.username;
+    const oauth2Email = oauth2UserInfo.email || '';
+
+    // 首先尝试通过oauth2_id查找用户
+    let [existingUsers] = await pool.execute(
+      'SELECT id, user_id, nickname, avatar, bio, location, follow_count, fans_count, like_count, is_active, gender, zodiac_sign, mbti, education, major, interests FROM users WHERE oauth2_id = ?',
+      [oauth2UserId.toString()]
+    );
+
+    let user;
+    let isNewUser = false;
+
+    if (existingUsers.length > 0) {
+      // 找到已绑定的用户
+      user = existingUsers[0];
+      
+      if (!user.is_active) {
+        return res.redirect('/?error=account_disabled');
+      }
+    } else {
+      // 未找到绑定的用户，创建新用户
+      isNewUser = true;
+      
+      // 生成唯一的user_id（基于OAuth2用户名或随机生成）
+      let newUserId = oauth2Username || `user_${oauth2UserId}`;
+      // 确保user_id唯一
+      let suffix = 0;
+      let baseUserId = newUserId;
+      while (true) {
+        const [checkUser] = await pool.execute(
+          'SELECT id FROM users WHERE user_id = ?',
+          [newUserId]
+        );
+        if (checkUser.length === 0) {
+          break;
+        }
+        suffix++;
+        newUserId = `${baseUserId}_${suffix}`;
+      }
+
+      // 获取用户IP属地
+      const userIP = getRealIP(req);
+      let ipLocation;
+      try {
+        ipLocation = await getIPLocation(userIP);
+      } catch (error) {
+        ipLocation = '未知';
+      }
+
+      // 创建新用户（不设置密码，通过OAuth2登录）
+      const defaultNickname = oauth2Username || `用户${oauth2UserId}`;
+      const [insertResult] = await pool.execute(
+        'INSERT INTO users (user_id, nickname, password, email, avatar, bio, location, oauth2_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [newUserId, defaultNickname, '', oauth2Email, '', '这个人很懒，还没有简介', ipLocation, oauth2UserId.toString()]
+      );
+
+      const newId = insertResult.insertId;
+      
+      // 获取新创建的用户信息
+      const [newUserRows] = await pool.execute(
+        'SELECT id, user_id, nickname, avatar, bio, location, follow_count, fans_count, like_count, is_active, gender, zodiac_sign, mbti, education, major, interests FROM users WHERE id = ?',
+        [newId.toString()]
+      );
+      user = newUserRows[0];
+
+      console.log(`OAuth2新用户创建成功 - 用户ID: ${newId}, 小石榴号: ${newUserId}, OAuth2_ID: ${oauth2UserId}`);
+    }
+
+    // 生成本站JWT令牌
+    const accessToken = generateAccessToken({ userId: user.id, user_id: user.user_id });
+    const refreshToken = generateRefreshToken({ userId: user.id, user_id: user.user_id });
+
+    // 获取User-Agent
+    const userAgent = req.headers['user-agent'] || '';
+
+    // 清除旧会话并保存新会话
+    await pool.execute('UPDATE user_sessions SET is_active = 0 WHERE user_id = ?', [user.id.toString()]);
+    await pool.execute(
+      'INSERT INTO user_sessions (user_id, token, refresh_token, expires_at, user_agent, is_active) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY), ?, 1)',
+      [user.id.toString(), accessToken, refreshToken, userAgent]
+    );
+
+    // 处理interests字段
+    if (user.interests) {
+      try {
+        user.interests = typeof user.interests === 'string'
+          ? JSON.parse(user.interests)
+          : user.interests;
+      } catch (e) {
+        user.interests = null;
+      }
+    }
+
+    console.log(`OAuth2用户登录成功 - 用户ID: ${user.id}, 小石榴号: ${user.user_id}`);
+
+    // 重定向回前端，携带token信息
+    // 使用URL参数传递token（前端需要处理）
+    const redirectParams = new URLSearchParams({
+      oauth2_login: 'success',
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      is_new_user: isNewUser ? 'true' : 'false'
+    });
+
+    res.redirect(`/?${redirectParams.toString()}`);
+  } catch (error) {
+    console.error('OAuth2回调处理失败:', error);
+    res.redirect('/?error=callback_error');
   }
 });
 

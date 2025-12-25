@@ -27,11 +27,14 @@ CREATE TABLE IF NOT EXISTS `users` (
   `major` varchar(100) DEFAULT NULL COMMENT '专业',
   `interests` json DEFAULT NULL COMMENT '兴趣爱好（JSON数组）',
   `verified` tinyint(1) DEFAULT 0 COMMENT '认证状态：0-未认证，1-已认证',
+  `oauth2_id` varchar(100) DEFAULT NULL COMMENT 'OAuth2用户中心的用户ID',
   PRIMARY KEY (`id`),
   UNIQUE KEY `user_id` (`user_id`),
+  UNIQUE KEY `uk_oauth2_id` (`oauth2_id`),
   KEY `idx_user_id` (`user_id`),
   KEY `idx_email` (`email`),
-  KEY `idx_created_at` (`created_at`)
+  KEY `idx_created_at` (`created_at`),
+  KEY `idx_oauth2_id` (`oauth2_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
 -- 2. 管理员表
