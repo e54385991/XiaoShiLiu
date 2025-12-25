@@ -68,7 +68,7 @@ router.get('/config', (req, res) => {
 // 获取用户石榴点余额
 router.get('/local-points', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.id;
     const points = await getOrCreateUserPoints(userId);
     
     res.json({
@@ -98,7 +98,7 @@ router.get('/user-balance', authenticateToken, async (req, res) => {
       });
     }
 
-    const userId = req.user.userId;
+    const userId = req.user.id;
 
     // 获取用户的oauth2_id和本地石榴点
     const [userRows] = await pool.execute(
@@ -171,7 +171,7 @@ router.post('/exchange-in', authenticateToken, async (req, res) => {
       });
     }
 
-    const userId = req.user.userId;
+    const userId = req.user.id;
     const { amount } = req.body;
 
     // 验证金额
@@ -274,7 +274,7 @@ router.post('/exchange-out', authenticateToken, async (req, res) => {
       });
     }
 
-    const userId = req.user.userId;
+    const userId = req.user.id;
     const { amount } = req.body;
 
     // 验证金额
