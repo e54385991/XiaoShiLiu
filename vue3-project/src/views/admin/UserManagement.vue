@@ -74,14 +74,6 @@ const formFields = [
       }
     ], placeholder: '请选择MBTI类型'
   },
-  {
-    key: 'education', label: '学历', type: 'select', options: [
-      { value: '', label: '请选择' },
-      { value: '高中及以下', label: '高中及以下' }, { value: '大专', label: '大专' }, { value: '本科', label: '本科' },
-      { value: '硕士', label: '硕士' }, { value: '博士', label: '博士' }
-    ], placeholder: '请选择学历'
-  },
-  { key: 'major', label: '专业', type: 'text', placeholder: '请输入专业' },
   { key: 'interests', label: '兴趣爱好', type: 'interest-input', placeholder: '请输入兴趣爱好' },
   { key: 'is_active', label: '激活状态', type: 'checkbox', checkboxLabel: '激活' },
   { key: 'verified', label: '认证状态', type: 'radio', options: [

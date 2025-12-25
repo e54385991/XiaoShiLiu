@@ -32,12 +32,10 @@ const visibleTags = computed(() => {
 
     if (!userInfo) return tags
 
-    // 按顺序检查各个标签字段
+    // 按顺序检查各个标签字段（已移除education和major）
     const tagFields = [
         { key: 'zodiac_sign', label: userInfo.zodiac_sign },
-        { key: 'mbti', label: userInfo.mbti },
-        { key: 'education', label: userInfo.education },
-        { key: 'major', label: userInfo.major }
+        { key: 'mbti', label: userInfo.mbti }
     ]
 
     // 添加非空的标签

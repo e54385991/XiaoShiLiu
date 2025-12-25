@@ -8,11 +8,25 @@
 
       <div class="auth-content">
         <div class="auth-header">
-          <h2 class="auth-title">{{ isLoginMode ? '登录小石榴' : '注册小石榴' }}</h2>
-          <p class="auth-subtitle">{{ isLoginMode ? '欢迎回来！' : '加入我们，开始分享美好生活' }}</p>
+          <h2 class="auth-title">{{ oauth2OnlyLogin ? '登录小石榴' : (isLoginMode ? '登录小石榴' : '注册小石榴') }}</h2>
+          <p class="auth-subtitle">{{ oauth2OnlyLogin ? '使用用户中心账号登录' : (isLoginMode ? '欢迎回来！' : '加入我们，开始分享美好生活') }}</p>
         </div>
 
-        <form @submit.prevent="handleSubmit" class="auth-form" novalidate autocomplete="off">
+        <!-- OAuth2 登录按钮（当OAuth2启用时显示） -->
+        <div v-if="oauth2Enabled" class="oauth2-section">
+          <button type="button" class="oauth2-btn" @click="handleOAuth2Login" :disabled="isSubmitting">
+            <SvgIcon name="user" width="20" height="20" />
+            <span>使用用户中心登录</span>
+          </button>
+        </div>
+
+        <!-- 分隔线（当同时启用OAuth2和传统登录时显示） -->
+        <div v-if="oauth2Enabled && !oauth2OnlyLogin" class="auth-divider">
+          <span>或</span>
+        </div>
+
+        <!-- 传统登录/注册表单（当未启用仅OAuth2登录时显示） -->
+        <form v-if="!oauth2OnlyLogin" @submit.prevent="handleSubmit" class="auth-form" novalidate autocomplete="off">
           <div class="form-group">
             <label for="user_id" class="form-label">小石榴号</label>
             <input type="text" id="user_id" v-model="formData.user_id" class="form-input"
@@ -84,7 +98,7 @@
           </button>
         </form>
 
-        <div class="auth-switch">
+        <div v-if="!oauth2OnlyLogin" class="auth-switch">
           <span class="switch-text">
             {{ isLoginMode ? '还没有账号？' : '已有账号？' }}
           </span>
@@ -93,7 +107,7 @@
           </button>
         </div>
 
-        <div v-if="isLoginMode && emailEnabled" class="forgot-password">
+        <div v-if="isLoginMode && emailEnabled && !oauth2OnlyLogin" class="forgot-password">
           <button type="button" class="forgot-btn" @click="openResetPassword">
             忘记密码？
           </button>
@@ -117,6 +131,7 @@ import MessageToast from '@/components/MessageToast.vue'
 import CaptchaModal from '@/components/modals/CaptchaModal.vue'
 import { useUserStore } from '@/stores/user.js'
 import { useScrollLock } from '@/composables/useScrollLock'
+import { authApi } from '@/api/index.js'
 
 const props = defineProps({
   initialMode: {
@@ -134,6 +149,10 @@ const { lock, unlock } = useScrollLock()
 
 // 邮件功能是否启用
 const emailEnabled = ref(false)
+// OAuth2是否启用
+const oauth2Enabled = ref(false)
+// 是否仅允许OAuth2登录
+const oauth2OnlyLogin = ref(false)
 
 const isAnimating = ref(false)
 const isLoginMode = ref(props.initialMode === 'login')
@@ -558,23 +577,42 @@ const openResetPassword = () => {
   }, 200)
 }
 
-// 获取邮件功能配置
-const fetchEmailConfig = async () => {
+// OAuth2登录
+const handleOAuth2Login = () => {
+  // 重定向到OAuth2登录页面
+  const oauth2LoginUrl = authApi.getOAuth2LoginUrl()
+  window.location.href = oauth2LoginUrl
+}
+
+// 获取认证配置（包括邮件和OAuth2）
+const fetchAuthConfig = async () => {
   try {
-    const response = await fetch('/api/auth/email-config')
+    const response = await fetch('/api/auth/auth-config')
     const result = await response.json()
     if (result.code === 200) {
       emailEnabled.value = result.data.emailEnabled
+      oauth2Enabled.value = result.data.oauth2Enabled
+      oauth2OnlyLogin.value = result.data.oauth2OnlyLogin
     }
   } catch (error) {
-    console.error('获取邮件配置失败:', error)
+    console.error('获取认证配置失败:', error)
+    // 如果新接口失败，尝试使用旧接口获取邮件配置
+    try {
+      const emailResponse = await fetch('/api/auth/email-config')
+      const emailResult = await emailResponse.json()
+      if (emailResult.code === 200) {
+        emailEnabled.value = emailResult.data.emailEnabled
+      }
+    } catch (e) {
+      console.error('获取邮件配置失败:', e)
+    }
   }
 }
 
 onMounted(() => {
   lock()
   isAnimating.value = true
-  fetchEmailConfig()
+  fetchAuthConfig()
 })
 </script>
 
@@ -849,6 +887,61 @@ onMounted(() => {
 .email-code-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* OAuth2 登录样式 */
+.oauth2-section {
+  margin-bottom: 16px;
+}
+
+.oauth2-btn {
+  width: 100%;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: white;
+  border: none;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+}
+
+.oauth2-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.oauth2-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.auth-divider span {
+  padding: 0 16px;
+  color: var(--text-color-secondary);
+  font-size: 14px;
 }
 
 /* 响应式设计 */

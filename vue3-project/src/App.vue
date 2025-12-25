@@ -1,6 +1,6 @@
 <script setup>
 import { RouterView } from 'vue-router'
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useAuthStore } from '@/stores/auth'
 import { useAboutStore } from '@/stores/about'
@@ -8,6 +8,7 @@ import { useChangePasswordStore } from '@/stores/changePassword'
 import { useKeyboardShortcutsStore } from '@/stores/keyboardShortcuts'
 import { useAccountSecurityStore } from '@/stores/accountSecurity'
 import { useVerifiedStore } from '@/stores/verified'
+import { useBalanceStore } from '@/stores/balance'
 import AuthModal from '@/components/modals/AuthModal.vue'
 import ResetPasswordModal from '@/components/modals/ResetPasswordModal.vue'
 import AboutModal from '@/components/modals/AboutModal.vue'
@@ -15,6 +16,7 @@ import ChangePasswordModal from '@/components/modals/ChangePasswordModal.vue'
 import KeyboardShortcutsModal from '@/components/modals/KeyboardShortcutsModal.vue'
 import AccountSecurityModal from '@/components/modals/AccountSecurityModal.vue'
 import VerifiedModal from '@/components/modals/VerifiedModal.vue'
+import BalanceModal from '@/components/modals/BalanceModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useConfirm } from '@/views/admin/composables/useConfirm'
 
@@ -25,10 +27,10 @@ const changePasswordStore = useChangePasswordStore()
 const keyboardShortcutsStore = useKeyboardShortcutsStore()
 const accountSecurityStore = useAccountSecurityStore()
 const verifiedStore = useVerifiedStore()
+const balanceStore = useBalanceStore()
 const { confirmState, handleConfirm, handleCancel } = useConfirm()
 
 // 找回密码模态框状态
-import { ref } from 'vue'
 const showResetPasswordModal = ref(false)
 
 const openResetPassword = () => {
@@ -43,6 +45,64 @@ const closeResetPassword = () => {
 const backToLoginFromReset = () => {
   showResetPasswordModal.value = false
   authStore.openLoginModal()
+}
+
+// 处理OAuth2回调参数
+const handleOAuth2Callback = () => {
+  const urlParams = new URLSearchParams(window.location.search)
+  const oauth2Login = urlParams.get('oauth2_login')
+  const accessToken = urlParams.get('access_token')
+  const refreshToken = urlParams.get('refresh_token')
+  const isNewUser = urlParams.get('is_new_user')
+  const error = urlParams.get('error')
+  const errorMessage = urlParams.get('message')
+
+  // 如果没有OAuth2相关参数，直接返回
+  if (!oauth2Login && !error) {
+    return
+  }
+
+  // 立即清除URL参数（安全性：减少敏感信息在URL中的暴露时间）
+  window.history.replaceState({}, document.title, window.location.pathname)
+
+  // 处理OAuth2登录错误
+  if (error) {
+    console.error('OAuth2登录错误:', error, errorMessage)
+    // 显示错误提示给用户
+    const errorMessages = {
+      'oauth2_disabled': 'OAuth2登录未启用',
+      'oauth2_auth_error': '授权失败：' + (errorMessage || '未知错误'),
+      'missing_code': '缺少授权码',
+      'invalid_state': '无效的安全令牌，请重试',
+      'token_error': '获取令牌失败：' + (errorMessage || '未知错误'),
+      'missing_access_token': '授权响应无效',
+      'userinfo_error': '获取用户信息失败',
+      'account_disabled': '账户已被禁用',
+      'callback_error': '登录回调处理失败：' + (errorMessage || '请稍后重试')
+    }
+    const displayMessage = errorMessages[error] || `登录失败：${error}`
+    alert(displayMessage)
+    return
+  }
+
+  // 处理OAuth2登录成功
+  if (oauth2Login === 'success' && accessToken) {
+    // 保存token
+    localStorage.setItem('token', accessToken)
+    if (refreshToken) {
+      localStorage.setItem('refreshToken', refreshToken)
+    }
+    
+    // 获取用户信息并保存
+    userStore.getCurrentUser().then(() => {
+      console.log('OAuth2登录成功', isNewUser === 'true' ? '（新用户）' : '')
+      
+      // 刷新页面以应用登录状态
+      window.location.reload()
+    }).catch((err) => {
+      console.error('获取用户信息失败:', err)
+    })
+  }
 }
 
 // 恢复保存的主题色
@@ -103,6 +163,9 @@ const restoreThemeColor = () => {
 
 // 应用启动时初始化用户信息和主题色
 onMounted(() => {
+  // 先处理OAuth2回调
+  handleOAuth2Callback()
+  
   userStore.initUserInfo()
   restoreThemeColor()
 })
@@ -123,6 +186,7 @@ onMounted(() => {
     <AccountSecurityModal v-model:visible="accountSecurityStore.showAccountSecurityModal"
       @close="accountSecurityStore.closeAccountSecurityModal" />
     <VerifiedModal v-if="verifiedStore.showVerifiedModal" @close="verifiedStore.closeVerifiedModal" />
+    <BalanceModal v-model:visible="balanceStore.showBalanceModal" @close="balanceStore.closeBalanceModal" />
     <ConfirmDialog v-model:visible="confirmState.visible" :title="confirmState.title" :message="confirmState.message"
       :type="confirmState.type" :confirm-text="confirmState.confirmText" :cancel-text="confirmState.cancelText"
       :show-cancel="confirmState.showCancel" @confirm="handleConfirm" @cancel="handleCancel" />

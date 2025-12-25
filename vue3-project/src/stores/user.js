@@ -119,6 +119,16 @@ export const useUserStore = defineStore('user', () => {
 
   // 初始化用户信息（从localStorage恢复）
   const initUserInfo = () => {
+    // 同步token状态从localStorage（支持OAuth2回调后的同步）
+    const savedToken = localStorage.getItem('token')
+    const savedRefreshToken = localStorage.getItem('refreshToken')
+    if (savedToken) {
+      token.value = savedToken
+    }
+    if (savedRefreshToken) {
+      refreshToken.value = savedRefreshToken
+    }
+    
     const savedUserInfo = localStorage.getItem('userInfo')
     if (savedUserInfo && token.value) {
       try {

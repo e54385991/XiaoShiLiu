@@ -27,11 +27,14 @@ CREATE TABLE IF NOT EXISTS `users` (
   `major` varchar(100) DEFAULT NULL COMMENT '专业',
   `interests` json DEFAULT NULL COMMENT '兴趣爱好（JSON数组）',
   `verified` tinyint(1) DEFAULT 0 COMMENT '认证状态：0-未认证，1-已认证',
+  `oauth2_id` bigint(20) DEFAULT NULL COMMENT 'OAuth2用户中心的用户ID',
   PRIMARY KEY (`id`),
   UNIQUE KEY `user_id` (`user_id`),
+  UNIQUE KEY `uk_oauth2_id` (`oauth2_id`),
   KEY `idx_user_id` (`user_id`),
   KEY `idx_email` (`email`),
-  KEY `idx_created_at` (`created_at`)
+  KEY `idx_created_at` (`created_at`),
+  KEY `idx_oauth2_id` (`oauth2_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
 -- 2. 管理员表
@@ -247,6 +250,35 @@ CREATE TABLE IF NOT EXISTS `audit` (
   KEY `idx_created_at` (`created_at`),
   CONSTRAINT `audit_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审核表';
+
+-- 16. 石榴点余额表（用户积分）
+CREATE TABLE IF NOT EXISTS `user_points` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'ID',
+  `user_id` bigint(20) NOT NULL COMMENT '用户ID',
+  `points` decimal(10,2) NOT NULL DEFAULT 0.00 COMMENT '石榴点余额',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_id` (`user_id`),
+  KEY `idx_user_id` (`user_id`),
+  CONSTRAINT `user_points_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='石榴点余额表';
+
+-- 17. 石榴点变动记录表
+CREATE TABLE IF NOT EXISTS `points_log` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'ID',
+  `user_id` bigint(20) NOT NULL COMMENT '用户ID',
+  `amount` decimal(10,2) NOT NULL COMMENT '变动金额（正数增加，负数减少）',
+  `balance_after` decimal(10,2) NOT NULL COMMENT '变动后余额',
+  `type` varchar(50) NOT NULL COMMENT '变动类型：exchange_in-兑入，exchange_out-兑出',
+  `reason` varchar(255) DEFAULT NULL COMMENT '变动原因',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_type` (`type`),
+  KEY `idx_created_at` (`created_at`),
+  CONSTRAINT `points_log_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='石榴点变动记录表';
 
 -- 插入默认管理员账户
 -- 密码: 123456

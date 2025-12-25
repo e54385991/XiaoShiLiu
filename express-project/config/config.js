@@ -126,6 +126,34 @@ const config = {
       email: process.env.EMAIL_FROM || '',
       name: process.env.EMAIL_FROM_NAME || '小石榴校园图文社区'
     }
+  },
+
+  // OAuth2 登录配置
+  oauth2: {
+    // 是否启用OAuth2登录
+    enabled: process.env.OAUTH2_ENABLED === 'true', // 默认不启用
+    // 是否仅允许OAuth2登录（禁用传统登录/注册）
+    onlyOAuth2: process.env.OAUTH2_ONLY_LOGIN === 'true', // 默认允许传统登录
+    // OAuth2服务器地址
+    loginUrl: process.env.OAUTH2_LOGIN_URL || '',
+    // OAuth2 Client ID（从管理后台获取的API令牌）
+    clientId: process.env.OAUTH2_CLIENT_ID || '',
+    // OAuth2回调地址（本站回调路径）
+    callbackPath: '/api/auth/oauth2/callback'
+  },
+
+  // 余额中心配置
+  balanceCenter: {
+    // 是否启用余额中心功能
+    enabled: process.env.BALANCE_CENTER_ENABLED === 'true', // 默认不启用
+    // 外部用户中心API地址
+    apiUrl: process.env.BALANCE_API_URL || 'https://user.yuelk.com',
+    // API密钥
+    apiKey: process.env.BALANCE_API_KEY || '',
+    // 兑入比例：1本站积分 = exchangeRateIn 用户中心余额
+    exchangeRateIn: parseFloat(process.env.BALANCE_EXCHANGE_RATE_IN) || 1.0,
+    // 兑出比例：1用户中心余额 = exchangeRateOut 本站积分
+    exchangeRateOut: parseFloat(process.env.BALANCE_EXCHANGE_RATE_OUT) || 1.0
   }
 };
 
