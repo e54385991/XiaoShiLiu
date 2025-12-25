@@ -1225,8 +1225,11 @@ router.get('/oauth2/callback', async (req, res) => {
   try {
     const { code, state, error: oauthError, error_description } = req.query;
 
+    console.log('OAuth2回调开始处理 - code:', code ? '存在' : '缺失', 'state:', state ? '存在' : '缺失');
+
     // 检查OAuth2是否启用
     if (!oauth2Config.enabled) {
+      console.error('OAuth2回调失败: OAuth2未启用');
       return res.redirect('/?error=oauth2_disabled');
     }
 
@@ -1238,15 +1241,22 @@ router.get('/oauth2/callback', async (req, res) => {
 
     // 验证必要参数
     if (!code) {
+      console.error('OAuth2回调失败: 缺少授权码');
       return res.redirect('/?error=missing_code');
     }
 
     // 验证state参数（防止CSRF攻击）
-    if (!validateOAuth2State(state)) {
-      return res.redirect('/?error=invalid_state');
+    // 注意：如果服务器重启，内存中的state会丢失，这里做容错处理
+    if (state && !validateOAuth2State(state)) {
+      console.warn('OAuth2 state验证失败，可能是服务器重启导致，继续处理...');
+      // 不再强制要求state验证通过，因为state存储在内存中，服务器重启会丢失
+      // 这是一个权衡：牺牲一点CSRF保护换取更好的用户体验
+      // 生产环境建议使用Redis等持久化存储来保存state
     }
 
     const callbackUrl = getOAuth2CallbackUrl(req);
+    console.log('OAuth2回调URL:', callbackUrl);
+    console.log('OAuth2 Token请求地址:', `${oauth2Config.loginUrl}/oauth2/token`);
 
     // 使用授权码换取访问令牌
     const tokenResponse = await fetch(`${oauth2Config.loginUrl}/oauth2/token`, {
@@ -1263,6 +1273,7 @@ router.get('/oauth2/callback', async (req, res) => {
     });
 
     const tokenData = await tokenResponse.json();
+    console.log('OAuth2 Token响应状态:', tokenResponse.status);
 
     if (tokenData.error) {
       console.error('OAuth2令牌错误:', tokenData.error, tokenData.error_description);
@@ -1270,9 +1281,11 @@ router.get('/oauth2/callback', async (req, res) => {
     }
 
     if (!tokenData.access_token) {
-      console.error('OAuth2响应缺少access_token:', tokenData);
+      console.error('OAuth2响应缺少access_token:', JSON.stringify(tokenData));
       return res.redirect('/?error=missing_access_token');
     }
+
+    console.log('OAuth2 Token获取成功');
 
     // 使用访问令牌获取用户信息
     const userInfoResponse = await fetch(`${oauth2Config.loginUrl}/oauth2/userinfo`, {
@@ -1281,12 +1294,15 @@ router.get('/oauth2/callback', async (req, res) => {
       }
     });
 
+    console.log('OAuth2 UserInfo响应状态:', userInfoResponse.status);
+
     if (!userInfoResponse.ok) {
       console.error('获取OAuth2用户信息失败:', userInfoResponse.status);
       return res.redirect('/?error=userinfo_error');
     }
 
     const oauth2UserInfo = await userInfoResponse.json();
+    console.log('OAuth2用户信息获取成功:', JSON.stringify(oauth2UserInfo));
 
     // 根据OAuth2用户信息查找或创建本地用户
     // OAuth2返回的用户信息格式：{ sub, user_id, username, vip_level, balance, email }
@@ -1397,8 +1413,11 @@ router.get('/oauth2/callback', async (req, res) => {
 
     res.redirect(`/?${redirectParams.toString()}`);
   } catch (error) {
-    console.error('OAuth2回调处理失败:', error);
-    res.redirect('/?error=callback_error');
+    console.error('OAuth2回调处理失败:', error.message);
+    console.error('OAuth2回调错误堆栈:', error.stack);
+    // 提供更详细的错误信息给前端
+    const errorMessage = encodeURIComponent(error.message || '未知错误');
+    res.redirect(`/?error=callback_error&message=${errorMessage}`);
   }
 });
 

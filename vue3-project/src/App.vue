@@ -65,7 +65,20 @@ const handleOAuth2Callback = () => {
   // 处理OAuth2登录错误
   if (error) {
     console.error('OAuth2登录错误:', error, errorMessage)
-    // 可以显示错误提示
+    // 显示错误提示给用户
+    const errorMessages = {
+      'oauth2_disabled': 'OAuth2登录未启用',
+      'oauth2_auth_error': '授权失败：' + (errorMessage || '未知错误'),
+      'missing_code': '缺少授权码',
+      'invalid_state': '无效的安全令牌，请重试',
+      'token_error': '获取令牌失败：' + (errorMessage || '未知错误'),
+      'missing_access_token': '授权响应无效',
+      'userinfo_error': '获取用户信息失败',
+      'account_disabled': '账户已被禁用',
+      'callback_error': '登录回调处理失败：' + (errorMessage || '请稍后重试')
+    }
+    const displayMessage = errorMessages[error] || `登录失败：${error}`
+    alert(displayMessage)
     return
   }
 
