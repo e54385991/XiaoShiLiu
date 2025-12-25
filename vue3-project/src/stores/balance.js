@@ -8,6 +8,7 @@ export const useBalanceStore = defineStore('balance', () => {
   const exchangeRateIn = ref(1.0)
   const exchangeRateOut = ref(1.0)
   const externalBalance = ref(0)
+  const localPoints = ref(0)
   const vipLevel = ref(0)
   const externalUsername = ref('')
   const isLoading = ref(false)
@@ -27,7 +28,7 @@ export const useBalanceStore = defineStore('balance', () => {
     }
   }
 
-  // 获取用户外部余额
+  // 获取用户外部余额和本地石榴点
   const fetchUserBalance = async () => {
     if (!enabled.value) return null
     
@@ -36,6 +37,7 @@ export const useBalanceStore = defineStore('balance', () => {
       const response = await balanceApi.getUserBalance()
       if (response.success) {
         externalBalance.value = response.data.balance
+        localPoints.value = response.data.localPoints || 0
         vipLevel.value = response.data.vip_level
         externalUsername.value = response.data.username
         return response.data
@@ -49,7 +51,7 @@ export const useBalanceStore = defineStore('balance', () => {
     }
   }
 
-  // 兑入余额
+  // 兑入石榴点
   const exchangeIn = async (amount) => {
     if (!enabled.value) {
       return { success: false, message: '余额中心未启用' }
@@ -60,6 +62,7 @@ export const useBalanceStore = defineStore('balance', () => {
       const response = await balanceApi.exchangeIn(amount)
       if (response.success) {
         externalBalance.value = response.data.newBalance
+        localPoints.value = response.data.newLocalPoints
         return { 
           success: true, 
           data: response.data,
@@ -68,14 +71,14 @@ export const useBalanceStore = defineStore('balance', () => {
       }
       return { success: false, message: response.message || '兑入失败' }
     } catch (error) {
-      console.error('兑入余额失败:', error)
+      console.error('兑入石榴点失败:', error)
       return { success: false, message: error.message || '网络错误' }
     } finally {
       isLoading.value = false
     }
   }
 
-  // 兑出余额
+  // 兑出石榴点
   const exchangeOut = async (amount) => {
     if (!enabled.value) {
       return { success: false, message: '余额中心未启用' }
@@ -86,6 +89,7 @@ export const useBalanceStore = defineStore('balance', () => {
       const response = await balanceApi.exchangeOut(amount)
       if (response.success) {
         externalBalance.value = response.data.newBalance
+        localPoints.value = response.data.newLocalPoints
         return { 
           success: true, 
           data: response.data,
@@ -94,7 +98,7 @@ export const useBalanceStore = defineStore('balance', () => {
       }
       return { success: false, message: response.message || '兑出失败' }
     } catch (error) {
-      console.error('兑出余额失败:', error)
+      console.error('兑出石榴点失败:', error)
       return { success: false, message: error.message || '网络错误' }
     } finally {
       isLoading.value = false
@@ -117,6 +121,7 @@ export const useBalanceStore = defineStore('balance', () => {
     exchangeRateIn,
     exchangeRateOut,
     externalBalance,
+    localPoints,
     vipLevel,
     externalUsername,
     isLoading,

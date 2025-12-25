@@ -1,6 +1,6 @@
 /**
  * 余额中心路由
- * 处理用户余额的兑入和兑出功能
+ * 处理用户石榴点的兑入和兑出功能
  */
 
 const express = require('express');
@@ -8,6 +8,49 @@ const router = express.Router();
 const { HTTP_STATUS, RESPONSE_CODES, ERROR_MESSAGES } = require('../constants');
 const { pool, balanceCenter: balanceCenterConfig } = require('../config/config');
 const { authenticateToken } = require('../middleware/auth');
+
+// 获取或初始化用户石榴点
+const getOrCreateUserPoints = async (userId) => {
+  const [rows] = await pool.execute(
+    'SELECT points FROM user_points WHERE user_id = ?',
+    [userId.toString()]
+  );
+  
+  if (rows.length === 0) {
+    // 用户没有积分记录，创建一个
+    await pool.execute(
+      'INSERT INTO user_points (user_id, points) VALUES (?, 0.00)',
+      [userId.toString()]
+    );
+    return 0.00;
+  }
+  
+  return parseFloat(rows[0].points);
+};
+
+// 更新用户石榴点并记录日志
+const updateUserPoints = async (userId, amount, type, reason) => {
+  const currentPoints = await getOrCreateUserPoints(userId);
+  const newPoints = currentPoints + amount;
+  
+  if (newPoints < 0) {
+    throw new Error('石榴点不足');
+  }
+  
+  // 更新积分
+  await pool.execute(
+    'UPDATE user_points SET points = ? WHERE user_id = ?',
+    [newPoints.toFixed(2), userId.toString()]
+  );
+  
+  // 记录日志
+  await pool.execute(
+    'INSERT INTO points_log (user_id, amount, balance_after, type, reason) VALUES (?, ?, ?, ?, ?)',
+    [userId.toString(), amount.toFixed(2), newPoints.toFixed(2), type, reason]
+  );
+  
+  return newPoints;
+};
 
 // 获取余额中心配置（前端需要）
 router.get('/config', (req, res) => {
@@ -20,6 +63,28 @@ router.get('/config', (req, res) => {
     },
     message: 'success'
   });
+});
+
+// 获取用户石榴点余额
+router.get('/local-points', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const points = await getOrCreateUserPoints(userId);
+    
+    res.json({
+      code: RESPONSE_CODES.SUCCESS,
+      data: {
+        points: points
+      },
+      message: 'success'
+    });
+  } catch (error) {
+    console.error('获取石榴点余额失败:', error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      code: RESPONSE_CODES.ERROR,
+      message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR
+    });
+  }
 });
 
 // 获取用户外部余额信息
@@ -35,7 +100,7 @@ router.get('/user-balance', authenticateToken, async (req, res) => {
 
     const userId = req.user.userId;
 
-    // 获取用户的oauth2_id
+    // 获取用户的oauth2_id和本地石榴点
     const [userRows] = await pool.execute(
       'SELECT oauth2_id FROM users WHERE id = ?',
       [userId.toString()]
@@ -55,6 +120,9 @@ router.get('/user-balance', authenticateToken, async (req, res) => {
         message: '用户未绑定OAuth2账号，无法使用余额中心'
       });
     }
+
+    // 获取本地石榴点余额
+    const localPoints = await getOrCreateUserPoints(userId);
 
     // 调用外部API获取用户余额
     const response = await fetch(`${balanceCenterConfig.apiUrl}/api/external/user?user_id=${oauth2Id}`, {
@@ -78,7 +146,8 @@ router.get('/user-balance', authenticateToken, async (req, res) => {
       data: {
         balance: result.data.balance,
         vip_level: result.data.vip_level,
-        username: result.data.username
+        username: result.data.username,
+        localPoints: localPoints
       },
       message: 'success'
     });
@@ -91,7 +160,7 @@ router.get('/user-balance', authenticateToken, async (req, res) => {
   }
 });
 
-// 兑入余额（从用户中心转入本站）
+// 兑入石榴点（从用户中心转入本站）
 router.post('/exchange-in', authenticateToken, async (req, res) => {
   try {
     // 检查余额中心是否启用
@@ -148,7 +217,7 @@ router.post('/exchange-in', authenticateToken, async (req, res) => {
       body: JSON.stringify({
         user_id: oauth2Id,
         amount: externalAmount,
-        reason: '小石榴社区余额兑入'
+        reason: '小石榴社区石榴点兑入'
       })
     });
 
@@ -162,33 +231,39 @@ router.post('/exchange-in', authenticateToken, async (req, res) => {
       });
     }
 
-    // 计算本站获得的积分
+    // 计算本站获得的石榴点
     const localPoints = numAmount * balanceCenterConfig.exchangeRateIn;
 
-    // TODO: 记录本站积分变更（如果有本站积分系统的话）
-    // 这里可以添加本站积分表的更新逻辑
+    // 更新本站石榴点
+    const newLocalPoints = await updateUserPoints(
+      userId, 
+      localPoints, 
+      'exchange_in', 
+      `从用户中心兑入 ${numAmount} 余额`
+    );
 
-    console.log(`用户 ${userId} 兑入成功: 外部余额 -${numAmount}, 本站积分 +${localPoints}`);
+    console.log(`用户 ${userId} 兑入成功: 外部余额 -${numAmount}, 石榴点 +${localPoints}`);
 
     res.json({
       code: RESPONSE_CODES.SUCCESS,
       data: {
         exchangedAmount: numAmount,
         receivedPoints: localPoints,
-        newBalance: result.data.balance
+        newBalance: result.data.balance,
+        newLocalPoints: newLocalPoints
       },
       message: '兑入成功'
     });
   } catch (error) {
-    console.error('兑入余额失败:', error);
+    console.error('兑入石榴点失败:', error);
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
       code: RESPONSE_CODES.ERROR,
-      message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR
+      message: error.message || ERROR_MESSAGES.INTERNAL_SERVER_ERROR
     });
   }
 });
 
-// 兑出余额（从本站转出到用户中心）
+// 兑出石榴点（从本站转出到用户中心）
 router.post('/exchange-out', authenticateToken, async (req, res) => {
   try {
     // 检查余额中心是否启用
@@ -232,8 +307,14 @@ router.post('/exchange-out', authenticateToken, async (req, res) => {
       });
     }
 
-    // TODO: 检查本站积分是否足够（如果有本站积分系统的话）
-    // 这里可以添加本站积分检查逻辑
+    // 检查本站石榴点是否足够
+    const currentPoints = await getOrCreateUserPoints(userId);
+    if (currentPoints < numAmount) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        code: RESPONSE_CODES.VALIDATION_ERROR,
+        message: `石榴点不足，当前余额: ${currentPoints.toFixed(2)}`
+      });
+    }
 
     // 计算增加的外部余额
     const externalAmount = numAmount * balanceCenterConfig.exchangeRateOut;
@@ -248,7 +329,7 @@ router.post('/exchange-out', authenticateToken, async (req, res) => {
       body: JSON.stringify({
         user_id: oauth2Id,
         amount: externalAmount,
-        reason: '小石榴社区余额兑出'
+        reason: '小石榴社区石榴点兑出'
       })
     });
 
@@ -262,25 +343,31 @@ router.post('/exchange-out', authenticateToken, async (req, res) => {
       });
     }
 
-    // TODO: 扣除本站积分（如果有本站积分系统的话）
-    // 这里可以添加本站积分表的更新逻辑
+    // 扣除本站石榴点
+    const newLocalPoints = await updateUserPoints(
+      userId, 
+      -numAmount, 
+      'exchange_out', 
+      `兑出到用户中心 ${externalAmount} 余额`
+    );
 
-    console.log(`用户 ${userId} 兑出成功: 本站积分 -${numAmount}, 外部余额 +${externalAmount}`);
+    console.log(`用户 ${userId} 兑出成功: 石榴点 -${numAmount}, 外部余额 +${externalAmount}`);
 
     res.json({
       code: RESPONSE_CODES.SUCCESS,
       data: {
         exchangedPoints: numAmount,
         receivedBalance: externalAmount,
-        newBalance: result.data.balance
+        newBalance: result.data.balance,
+        newLocalPoints: newLocalPoints
       },
       message: '兑出成功'
     });
   } catch (error) {
-    console.error('兑出余额失败:', error);
+    console.error('兑出石榴点失败:', error);
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
       code: RESPONSE_CODES.ERROR,
-      message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR
+      message: error.message || ERROR_MESSAGES.INTERNAL_SERVER_ERROR
     });
   }
 });

@@ -10,16 +10,29 @@
       
       <div class="modal-body">
         <!-- 余额显示 -->
-        <div class="balance-card">
-          <div class="balance-info">
-            <div class="balance-label">用户中心余额</div>
-            <div class="balance-value">
-              <span v-if="balanceStore.isLoading" class="loading">加载中...</span>
-              <span v-else class="amount">{{ balanceStore.externalBalance.toFixed(2) }}</span>
+        <div class="balance-cards">
+          <div class="balance-card external">
+            <div class="balance-info">
+              <div class="balance-label">用户中心余额</div>
+              <div class="balance-value">
+                <span v-if="balanceStore.isLoading" class="loading">加载中...</span>
+                <span v-else class="amount">{{ balanceStore.externalBalance.toFixed(2) }}</span>
+              </div>
+            </div>
+            <div v-if="balanceStore.vipLevel > 0" class="vip-badge">
+              VIP {{ balanceStore.vipLevel }}
             </div>
           </div>
-          <div v-if="balanceStore.vipLevel > 0" class="vip-badge">
-            VIP {{ balanceStore.vipLevel }}
+          
+          <div class="balance-card local">
+            <div class="balance-info">
+              <div class="balance-label">石榴点</div>
+              <div class="balance-value">
+                <span v-if="balanceStore.isLoading" class="loading">加载中...</span>
+                <span v-else class="amount">{{ balanceStore.localPoints.toFixed(2) }}</span>
+              </div>
+            </div>
+            <div class="points-icon">🍒</div>
           </div>
         </div>
 
@@ -27,11 +40,11 @@
         <div class="rate-info">
           <div class="rate-item">
             <span class="rate-label">兑入比例</span>
-            <span class="rate-value">1 用户中心余额 = {{ balanceStore.exchangeRateIn }} 本站积分</span>
+            <span class="rate-value">1 用户中心余额 = {{ balanceStore.exchangeRateIn }} 石榴点</span>
           </div>
           <div class="rate-item">
             <span class="rate-label">兑出比例</span>
-            <span class="rate-value">1 本站积分 = {{ balanceStore.exchangeRateOut }} 用户中心余额</span>
+            <span class="rate-value">1 石榴点 = {{ balanceStore.exchangeRateOut }} 用户中心余额</span>
           </div>
         </div>
 
@@ -56,19 +69,19 @@
 
           <div class="exchange-form">
             <div class="form-group">
-              <label>{{ activeTab === 'in' ? '兑入金额' : '兑出积分' }}</label>
+              <label>{{ activeTab === 'in' ? '兑入金额' : '兑出石榴点' }}</label>
               <input 
                 v-model="exchangeAmount" 
                 type="number" 
                 min="0" 
                 step="0.01"
-                :placeholder="activeTab === 'in' ? '请输入要从用户中心转入的金额' : '请输入要转出的本站积分'"
+                :placeholder="activeTab === 'in' ? '请输入要从用户中心转入的金额' : '请输入要转出的石榴点'"
               />
             </div>
             
             <div v-if="exchangeAmount > 0" class="exchange-preview">
               <span v-if="activeTab === 'in'">
-                将获得 <strong>{{ (exchangeAmount * balanceStore.exchangeRateIn).toFixed(2) }}</strong> 本站积分
+                将获得 <strong>{{ (exchangeAmount * balanceStore.exchangeRateIn).toFixed(2) }}</strong> 石榴点
               </span>
               <span v-else>
                 将获得 <strong>{{ (exchangeAmount * balanceStore.exchangeRateOut).toFixed(2) }}</strong> 用户中心余额
@@ -234,15 +247,29 @@ onMounted(() => {
   overflow-y: auto;
 }
 
+/* 余额卡片容器 */
+.balance-cards {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
 /* 余额卡片 */
 .balance-card {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-dark) 100%);
+  flex: 1;
   border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 16px;
+  padding: 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.balance-card.external {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-dark) 100%);
+}
+
+.balance-card.local {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
 }
 
 .balance-info {
@@ -250,19 +277,23 @@ onMounted(() => {
 }
 
 .balance-label {
-  font-size: 14px;
+  font-size: 12px;
   opacity: 0.9;
   margin-bottom: 4px;
 }
 
 .balance-value {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
 }
 
 .balance-value .loading {
-  font-size: 16px;
+  font-size: 14px;
   opacity: 0.8;
+}
+
+.points-icon {
+  font-size: 24px;
 }
 
 .vip-badge {
